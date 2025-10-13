@@ -15,7 +15,7 @@ import com.baomidou.mybatisplus.extension.service.IService;
  */
 public interface IWbService extends IService<Wb> {
 
-    JSONArray load(String sid, String gridKey);
+    JSONArray load(String gridKey);
 
-    JSONObject loadSheets(String sid, String gridKey, String[] index);
+    JSONObject loadSheets(String gridKey, String[] index);
 }

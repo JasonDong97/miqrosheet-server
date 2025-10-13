@@ -10,12 +10,14 @@ import com.alibaba.fastjson2.JSONWriter;
 import com.era.miqrosheet.domain.model.bo.ReplyMessage;
 import com.era.miqrosheet.domain.service.ISheetOperationService;
 import com.era.miqrosheet.domain.service.impl.SheetOperationServiceImpl;
+import com.era.miqrosheet.infra.config.OAuthConfig;
 import com.era.miqrosheet.infra.util.GzipUtil;
 import lombok.extern.slf4j.Slf4j;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
 import org.springframework.stereotype.Component;
 
 import javax.websocket.*;
-import javax.websocket.server.PathParam;
 import javax.websocket.server.ServerEndpoint;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -39,7 +41,7 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 @Slf4j
 @Component
-@ServerEndpoint(value = "/websocket/{sid}")
+@ServerEndpoint(value = "/websocket")
 public class SheetWebSocket {
 
     // 用线程安全集合存储所有连接
@@ -48,19 +50,22 @@ public class SheetWebSocket {
     private static final String SUCCESS = "success";
     private static final String FAIL = "fail";
     private final ISheetOperationService sheetOperationService = SpringUtil.getBean(SheetOperationServiceImpl.class);
+    private final OkHttpClient httpClient = new OkHttpClient();
+    private final OAuthConfig oAuthConfig = SpringUtil.getBean(OAuthConfig.class);
     private Session session;
     private String gridKey;
-    private String token;
     private ReplyMessage lastReply; // 记录最后一次的数据
     private String username;
 
     // 连接打开
     @OnOpen
-    public void onOpen(@PathParam("sid") String sid, Session session) {
+    public void onOpen(Session session) {
         Map<String, List<String>> parameters = session.getRequestParameterMap();
         this.session = session;
-        this.username = StrUtil.format("{}-{}", sid, session.getId());
         this.gridKey = CollUtil.get(parameters.get("g"), 0);
+        String token = CollUtil.get(parameters.get("t"), 0);
+        this.username = getUserName(token);
+
         if (StrUtil.isBlank(gridKey)) {
             log.warn("连接参数错误，gridKey不能为空");
             sendMessage("gridKey不能为空");
@@ -72,6 +77,37 @@ public class SheetWebSocket {
         log.info("新连接[{}][{}], 当前表格协同 {} 人。", gridKey, username, SESSION_MAP.get(gridKey).size());
         // 同步其他用户的最后操作信息
         syncReplyMsg();
+    }
+
+    private String getUserName(String token) {
+        Request request = new Request.Builder()
+                .url(oAuthConfig.getUserInfoURL())
+                .addHeader("Authorization", "Bearer " + token)
+                .get()
+                .build();
+        try (var response = httpClient.newCall(request).execute()) {
+            if (response.isSuccessful() && response.body() != null) {
+                String body = response.body().string();
+                JSONObject json = JSON.parseObject(body);
+                if (json != null && 200 == json.getIntValue("code")) {
+                    JSONObject userInfo = json.getJSONObject("data");
+                    if (userInfo != null) {
+                        String name = userInfo.getString("nickName");
+                        if (StrUtil.isNotBlank(name)) {
+                            return name;
+                        }
+                    }
+                } else {
+                    log.warn("获取用户信息失败: {}", json != null ? json.getString("msg") : body);
+                    return "匿名用户";
+                }
+            } else {
+                log.warn("获取用户信息失败: {}", response.code());
+            }
+        } catch (IOException e) {
+            log.error("获取用户信息异常", e);
+        }
+        return "匿名用户";
     }
 
     private void syncReplyMsg() {
@@ -104,8 +140,6 @@ public class SheetWebSocket {
             log.debug("重复消息，忽略不处理[{}][{}]:{}", gridKey, username, msg);
             return;
         }
-        log.info("接收消息[{}][{}]:{}", gridKey, username, msg);
-
         // 处理操作
         try {
             JSONObject operation = JSON.parseObject(msg);
@@ -118,7 +152,8 @@ public class SheetWebSocket {
                 }
             }
         } catch (Exception e) {
-            log.error("操作处理异常: {}", e.getMessage(), e);
+            log.error("接收消息发生异常！[{}][{}]:{}", gridKey, username, msg);
+            log.error("", e);
             sendMessage(buildErrorMessage("操作处理异常: " + e.getMessage()));
             return;
         }

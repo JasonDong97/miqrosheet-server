@@ -34,7 +34,7 @@ public class WbServiceImpl extends ServiceImpl<WbMapper, Wb> implements IWbServi
     private final RedisHelper<String, String> redisHelper;
 
     @Override
-    public JSONArray load(String sid, String gridKey) {
+    public JSONArray load(String gridKey) {
         var sheets = wbSheetMapper.selectByGridKey(gridKey);
         JSONArray arr = new JSONArray();
         sheets.forEach(sheet -> {
@@ -60,7 +60,7 @@ public class WbServiceImpl extends ServiceImpl<WbMapper, Wb> implements IWbServi
     }
 
     @Override
-    public JSONObject loadSheets(String sid, String gridKey, String[] index) {
+    public JSONObject loadSheets(String gridKey, String[] index) {
         if (index == null || index.length == 0) {
             return JSONObject.of();
         }

@@ -38,4 +38,7 @@ public class OAuthConfig {
                 + "&redirect_uri=" + redirectUri;
     }
 
+    public String getUserInfoURL() {
+        return oauthUrl+"/userinfo";
+    }
 }
