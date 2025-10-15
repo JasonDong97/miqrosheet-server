@@ -26,7 +26,7 @@ spring:
     password: 'psQ!4Tr$!qSzk@'
     database: 4
     
-# SpringDoc OpenAPI ??
+# SpringDoc OpenAPI
 knife4j:
   enable: true
   setting:

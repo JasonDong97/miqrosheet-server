@@ -4,11 +4,13 @@ import cn.hutool.core.lang.Assert;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.era.miqrosheet.domain.mapper.WbMapper;
 import com.era.miqrosheet.domain.mapper.WbSheetCelldataMapper;
 import com.era.miqrosheet.domain.mapper.WbSheetMapper;
 import com.era.miqrosheet.domain.model.Wb;
+import com.era.miqrosheet.domain.model.WbSheet;
 import com.era.miqrosheet.domain.model.WbSheetCelldata;
 import com.era.miqrosheet.domain.service.IWbService;
 import com.era.miqrosheet.infra.helper.RedisHelper;
@@ -32,10 +34,16 @@ public class WbServiceImpl extends ServiceImpl<WbMapper, Wb> implements IWbServi
     private final WbSheetMapper wbSheetMapper;
     private final WbSheetCelldataMapper celldataMapper;
     private final RedisHelper<String, String> redisHelper;
+    private final WbMapper wbMapper;
 
     @Override
     public JSONArray load(String gridKey) {
+
         var sheets = wbSheetMapper.selectByGridKey(gridKey);
+        if (sheets == null || sheets.isEmpty()) {
+            return createDefaultSheet(gridKey);
+        }
+
         JSONArray arr = new JSONArray();
         sheets.forEach(sheet -> {
             JSONObject sheetJson = JSON.parseObject(sheet);
@@ -46,6 +54,24 @@ public class WbServiceImpl extends ServiceImpl<WbMapper, Wb> implements IWbServi
             arr.add(sheetJson);
         });
         return arr;
+    }
+
+    /**
+     * 创建默认的sheet
+     *
+     * @param gridKey gridKey
+     * @return 默认的sheet数据
+     */
+    private JSONArray createDefaultSheet(String gridKey) {
+        // 新增或更新 wb
+        Wb wb = wbMapper.selectOne(Wrappers.<Wb>lambdaQuery().eq(Wb::getGridKey, gridKey));
+        if (wb == null) {
+            wb = new Wb();
+            wb.setGridKey(gridKey);
+            wb.setName("MicroSheet");
+            wbMapper.insert(wb);
+        }
+        return null;
     }
 
     private List<JSONObject> loadCellData(String gridKey, String sheetIndex) {

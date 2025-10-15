@@ -16,10 +16,15 @@
     <description>MiQroSheet</description>
 
     <properties>
+        <springboot.version>2.5.15</springboot.version>
         <java.version>11</java.version>
         <maven.compiler.source>11</maven.compiler.source>
         <maven.compiler.target>11</maven.compiler.target>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.build.sourceVersion>11</project.build.sourceVersion>
+        <project.build.targetVersion>11</project.build.targetVersion>
+        <skipTests>true</skipTests>
     </properties>
 
     <dependencyManagement>
@@ -27,7 +32,7 @@
             <dependency>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-parent</artifactId>
-                <version>2.5.15</version>
+                <version>${springboot.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
@@ -136,10 +141,19 @@
     </dependencies>
 
     <build>
+        <finalName>miqrosheet</finalName>
         <plugins>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+                <version>${springboot.version}</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>repackage</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>

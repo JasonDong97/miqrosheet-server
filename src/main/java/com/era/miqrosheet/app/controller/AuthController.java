@@ -1,5 +1,6 @@
 package com.era.miqrosheet.app.controller;
 
+import cn.hutool.core.util.StrUtil;
 import cn.hutool.extra.servlet.ServletUtil;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
@@ -17,6 +18,7 @@ import javax.servlet.http.Cookie;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.util.Map;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -30,13 +32,23 @@ public class AuthController {
 
     /**
      * OAuth2 重定向处理
-     * http://localhost:8081/miqrosheet/oauth2/redirect?redirectUri=http://localhost:8081/miqrosheet
+     * test:
+     * - http://localhost:8081/miqrosheet/oauth2/redirect?redirectUri=http://localhost:8081/miqrosheet
      */
     @GetMapping("/redirect")
     public void redirect(HttpServletRequest request,
                          HttpServletResponse response,
-                         String code, String redirectUri) throws IOException {
+                         String code,
+                         String redirectUri) throws IOException {
+
+        Map<String, String> headerMap = ServletUtil.getHeaderMap(request);
+        log.info("headers: {}", JSON.toJSONString(headerMap));
         String requestUrl = request.getRequestURL().toString();
+        String referer = ServletUtil.getHeader(request, "referer", "UTF-8");
+        if (referer != null) {
+            referer = StrUtil.replaceLast(referer, "#/", "");
+            requestUrl = referer + request.getRequestURI();
+        }
         log.info("requestUrl: {}", requestUrl);
 
         Cookie cookie = ServletUtil.getCookie(request, "access_token");
