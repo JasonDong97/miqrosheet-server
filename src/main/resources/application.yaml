@@ -9,7 +9,7 @@ spring:
   application:
     name: MiQroSheet
   datasource:
-    url: jdbc:mysql://10.36.160.33:3306/miqrosheet?useSSL=false&serverTimezone=Asia/Shanghai
+    url: jdbc:mysql://192.168.5.10:3306/miqrosheet?useSSL=false&serverTimezone=Asia/Shanghai
     username: root
     password: EybTcTBcJCdjwOFh
     hikari:
@@ -21,8 +21,8 @@ spring:
       max-lifetime: 1800000
       pool-name: MiQroSheetHikariCP
   redis:
-    host: 10.36.160.33
-    port: 31105
+    host: 192.168.5.10
+    port: 6379
     password: 'psQ!4Tr$!qSzk@'
     database: 4
     

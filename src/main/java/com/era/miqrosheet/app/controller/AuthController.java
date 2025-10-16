@@ -18,7 +18,7 @@ import javax.servlet.http.Cookie;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import java.util.Map;
+import java.net.URL;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -33,41 +33,42 @@ public class AuthController {
     /**
      * OAuth2 重定向处理
      * test:
-     * - http://localhost:8081/miqrosheet/oauth2/redirect?redirectUri=http://localhost:8081/miqrosheet
+     * - http://localhost:8081/miqrosheet/oauth2/authorize
+     * - http://192.168.5.10:20080?gridKey=test
      */
-    @GetMapping("/redirect")
+    @GetMapping("/authorize")
     public void redirect(HttpServletRequest request,
                          HttpServletResponse response,
-                         String code,
-                         String redirectUri) throws IOException {
+                         String code) throws IOException {
 
-        Map<String, String> headerMap = ServletUtil.getHeaderMap(request);
-        log.info("headers: {}", JSON.toJSONString(headerMap));
         String requestUrl = request.getRequestURL().toString();
         String referer = ServletUtil.getHeader(request, "referer", "UTF-8");
         if (referer != null) {
             referer = StrUtil.replaceLast(referer, "#/", "");
-            requestUrl = referer + request.getRequestURI();
+            URL url = new URL(referer);
+            requestUrl = url.getProtocol() + "://" + url.getHost() + ":" + url.getPort() + request.getRequestURI();
         }
-        log.info("requestUrl: {}", requestUrl);
+
+        log.info("referer: {}", referer);
+        log.info("request: {}", requestUrl);
 
         Cookie cookie = ServletUtil.getCookie(request, "access_token");
         if (cookie != null) {
             String accessToken = cookie.getValue();
             if (accessToken != null) {
-                response.sendRedirect(redirectUri);
+                response.sendRedirect(referer);
                 return;
             }
         }
 
         if (code == null) {
             log.info("redirect to authorize");
-            response.sendRedirect(oAuthConfig.getAuthorizeURL(requestUrl + "?redirectUri=" + redirectUri));
+            response.sendRedirect(oAuthConfig.getAuthorizeURL(requestUrl));
             return;
         }
 
         log.info("code: {}", code);
-        String tokenURL = oAuthConfig.getTokenURL(code, requestUrl + "?redirectUri=" + redirectUri);
+        String tokenURL = oAuthConfig.getTokenURL(code, requestUrl);
         log.info("tokenURL: {}", tokenURL);
         Request httpReq = new Request.Builder().url(tokenURL).get().build();
         try (Response resp = client.newCall(httpReq).execute()) {
@@ -81,7 +82,7 @@ public class AuthController {
                     cookie.setPath("/");
                     cookie.setMaxAge(expiresIn.intValue());
                     response.addCookie(cookie);
-                    response.sendRedirect(redirectUri);
+                    response.sendRedirect(referer);
                 } else {
                     response.setContentType("application/json;charset=UTF-8");
                     response.getWriter().write(json.toJSONString());

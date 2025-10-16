@@ -37,7 +37,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * rv_end就是个信号
  * 表示这次范围更新数据全部传输完,它自身这次不带数据过去的
  * </p>
- *
  */
 @Slf4j
 @Component
@@ -69,7 +68,7 @@ public class SheetWebSocket {
         if (StrUtil.isBlank(gridKey)) {
             log.warn("连接参数错误，gridKey不能为空");
             sendMessage("gridKey不能为空");
-            closeSession(CloseReason.CloseCodes.CANNOT_ACCEPT, "gridKey不能为空");
+            close(CloseReason.CloseCodes.CANNOT_ACCEPT, "gridKey不能为空");
             return;
         }
 
@@ -77,6 +76,144 @@ public class SheetWebSocket {
         log.info("新连接[{}][{}], 当前表格协同 {} 人。", gridKey, username, SESSION_MAP.get(gridKey).size());
         // 同步其他用户的最后操作信息
         syncReplyMsg();
+    }
+
+    // 收到消息
+
+    @OnMessage
+    public void onMessage(String message, boolean last) {
+        if ("rub".equalsIgnoreCase(message)) {
+            return;
+        }
+
+        // 处理部分消息
+        byte[] bytes = appendMessage(message);
+        if (!last) {
+            return;
+        }
+
+        removePartialMessage();
+        String msg = URLUtil.decode(GzipUtil.uncompress(bytes));
+        if (msg == null) {
+            return;
+        }
+
+        if (lastReply != null && lastReply.getData().equals(msg)) {
+            log.debug("重复消息，忽略不处理[{}][{}]:{}", gridKey, username, msg);
+            return;
+        }
+        // 处理操作
+        try {
+            JSONObject operation = JSON.parseObject(msg);
+            if (operation != null) {
+                JSONObject result = sheetOperationService.processOperation(operation, gridKey);
+                if ("error".equals(result.getString("status"))) {
+                    log.error("操作处理失败: {}", result.getString("message"));
+                    sendMessage(buildErrorMessage(result.getString("message")));
+                    return;
+                }
+            }
+        } catch (Exception e) {
+            log.error("接收消息发生异常！[{}][{}]:{}", gridKey, username, msg);
+            log.error("", e);
+            sendMessage(buildErrorMessage("操作处理异常: " + e.getMessage()));
+            return;
+        }
+
+        sendMessage(msg);
+        broadcast(msg);
+    }
+    // 连接关闭
+
+    @OnClose
+    public void onClose(CloseReason closeReason) {
+        if (StrUtil.isBlank(gridKey)) {
+            return;
+        }
+        SESSION_MAP.computeIfPresent(gridKey, (k, v) -> {
+            v.remove(this);
+            return v;
+        });
+        log.info("[websocket] 连接断开：id={}，reason={}, 当前连接数={}", username, closeReason, SESSION_MAP.size());
+    }
+    // 异常
+
+    @OnError
+    public void onError(Throwable t) {
+        log.error("[websocket] 连接异常：{}", t.getMessage());
+        close(CloseReason.CloseCodes.UNEXPECTED_CONDITION, t.getMessage());
+    }
+    // 安全关闭
+
+    private void close(CloseReason.CloseCodes code, String reason) {
+        try {
+            if (session.isOpen()) {
+                session.close(new CloseReason(code, reason));
+            }
+        } catch (IOException e) {
+            log.error("[websocket] 关闭异常: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 处理部分消息拼接
+     *
+     * @param message 消息
+     * @return 拼接后的消息
+     */
+    private byte[] appendMessage(String message) {
+        byte[] bytes = message.getBytes(StandardCharsets.ISO_8859_1);
+        Map<String, Object> userProperties = session.getUserProperties();
+        log.debug("收到部分消息，等待接收完成[{}][{}]", gridKey, username);
+        byte[] parts = (byte[]) userProperties.get(PARTIAL_MESSAGE_KEY);
+        if (parts != null) {
+            byte[] newParts = new byte[parts.length + bytes.length];
+            System.arraycopy(parts, 0, newParts, 0, parts.length);
+            System.arraycopy(bytes, 0, newParts, parts.length, bytes.length);
+            parts = newParts;
+        } else {
+            parts = bytes;
+        }
+        userProperties.put(PARTIAL_MESSAGE_KEY, parts);
+        return parts;
+    }
+
+    /**
+     * 移除部分消息记录
+     */
+    private void removePartialMessage() {
+        session.getUserProperties().remove(PARTIAL_MESSAGE_KEY);
+    }
+
+    /**
+     * 构建返回消息
+     *
+     * @param data 数据
+     * @param type 类型 0-操作确认 1-错误消息 2-广播更新 3-批量更新
+     * @return 消息对象
+     */
+    private ReplyMessage buildMessage(String data, Integer type) {
+        ReplyMessage message = new ReplyMessage();
+        message.setType(type);
+        message.setId(session.getId());
+        message.setUsername(username);
+        message.setStatus(0);
+        message.setReturnMessage(SUCCESS);
+        message.setCreateTime(System.currentTimeMillis());
+        message.setData(data);
+        return message;
+    }
+
+    private ReplyMessage buildErrorMessage(String errorMessage) {
+        ReplyMessage message = new ReplyMessage();
+        message.setType(1);
+        message.setId(session.getId());
+        message.setUsername(username);
+        message.setStatus(1);
+        message.setReturnMessage(FAIL);
+        message.setCreateTime(System.currentTimeMillis());
+        message.setData(errorMessage);
+        return message;
     }
 
     private String getUserName(String token) {
@@ -117,146 +254,6 @@ public class SheetWebSocket {
             }
         }
     }
-
-    // 收到消息
-    @OnMessage
-    public void onMessage(String message, boolean last) {
-        if ("rub".equalsIgnoreCase(message)) {
-            return;
-        }
-        // 处理部分消息
-        byte[] bytes = putPartialMessage(message);
-        if (!last) {
-            return;
-        }
-
-        removePartialMessage();
-        String msg = URLUtil.decode(GzipUtil.uncompress(bytes));
-        if (msg == null) {
-            return;
-        }
-
-        if (lastReply != null && lastReply.getData().equals(msg)) {
-            log.debug("重复消息，忽略不处理[{}][{}]:{}", gridKey, username, msg);
-            return;
-        }
-        // 处理操作
-        try {
-            JSONObject operation = JSON.parseObject(msg);
-            if (operation != null) {
-                JSONObject result = sheetOperationService.processOperation(operation, gridKey);
-                if ("error".equals(result.getString("status"))) {
-                    log.error("操作处理失败: {}", result.getString("message"));
-                    sendMessage(buildErrorMessage(result.getString("message")));
-                    return;
-                }
-            }
-        } catch (Exception e) {
-            log.error("接收消息发生异常！[{}][{}]:{}", gridKey, username, msg);
-            log.error("", e);
-            sendMessage(buildErrorMessage("操作处理异常: " + e.getMessage()));
-            return;
-        }
-
-        sendMessage(msg);
-        broadcast(msg);
-    }
-
-    // 连接关闭
-    @OnClose
-    public void onClose(CloseReason closeReason) {
-        if (StrUtil.isBlank(gridKey)) {
-            return;
-        }
-        SESSION_MAP.computeIfPresent(gridKey, (k, v) -> {
-            v.remove(this);
-            return v;
-        });
-        log.info("[websocket] 连接断开：id={}，reason={}, 当前连接数={}", username, closeReason, SESSION_MAP.size());
-    }
-
-    // 异常
-    @OnError
-    public void onError(Throwable throwable) {
-        log.error("[websocket] 连接异常：", throwable);
-        closeSession(CloseReason.CloseCodes.UNEXPECTED_CONDITION, throwable.getMessage());
-    }
-
-    // 安全关闭
-    private void closeSession(CloseReason.CloseCodes code, String reason) {
-        try {
-            if (session.isOpen()) {
-                session.close(new CloseReason(code, reason));
-            }
-        } catch (IOException e) {
-            log.error("[websocket] 关闭异常: {}", e.getMessage(), e);
-        }
-    }
-
-    private String getFullMessage(String message) {
-        try {
-            byte[] partialBytes = (byte[]) session.getUserProperties().get(PARTIAL_MESSAGE_KEY);
-            if (partialBytes == null) {
-                return URLUtil.decode(GzipUtil.uncompress(message.getBytes(StandardCharsets.ISO_8859_1)));
-            }
-
-            byte[] messageBytes = message.getBytes(StandardCharsets.ISO_8859_1);
-            byte[] fullBytes = new byte[partialBytes.length + messageBytes.length];
-            System.arraycopy(partialBytes, 0, fullBytes, 0, partialBytes.length);
-            System.arraycopy(messageBytes, 0, fullBytes, partialBytes.length, messageBytes.length);
-            return URLUtil.decode(GzipUtil.uncompress(fullBytes));
-        } catch (Exception e) {
-            log.error("获取完整消息异常", e);
-        }
-        removePartialMessage();
-        return null;
-    }
-
-    private void removePartialMessage() {
-        session.getUserProperties().remove(PARTIAL_MESSAGE_KEY);
-    }
-
-    private byte[] putPartialMessage(String message) {
-        byte[] bytes = message.getBytes(StandardCharsets.ISO_8859_1);
-        Map<String, Object> userProperties = session.getUserProperties();
-        log.debug("收到部分消息，等待接收完成[{}][{}]", gridKey, username);
-        byte[] parts = (byte[]) userProperties.get(PARTIAL_MESSAGE_KEY);
-        if (parts != null) {
-            byte[] newParts = new byte[parts.length + bytes.length];
-            System.arraycopy(parts, 0, newParts, 0, parts.length);
-            System.arraycopy(bytes, 0, newParts, parts.length, bytes.length);
-            parts = newParts;
-        } else {
-            parts = bytes;
-        }
-        userProperties.put(PARTIAL_MESSAGE_KEY, parts);
-        return parts;
-    }
-
-    private ReplyMessage buildMessage(String data, Integer type) {
-        ReplyMessage message = new ReplyMessage();
-        message.setType(type);
-        message.setId(session.getId());
-        message.setUsername(username);
-        message.setStatus(0);
-        message.setReturnMessage(SUCCESS);
-        message.setCreateTime(System.currentTimeMillis());
-        message.setData(data);
-        return message;
-    }
-
-    private ReplyMessage buildErrorMessage(String errorMessage) {
-        ReplyMessage message = new ReplyMessage();
-        message.setType(1);
-        message.setId(session.getId());
-        message.setUsername(username);
-        message.setStatus(1);
-        message.setReturnMessage(FAIL);
-        message.setCreateTime(System.currentTimeMillis());
-        message.setData(errorMessage);
-        return message;
-    }
-
     // 群发消息
     private void broadcast(String data) {
         JSONObject json = JSON.parseObject(data);
@@ -300,7 +297,7 @@ public class SheetWebSocket {
             }
         } catch (IOException e) {
             log.error("[websocket] 发送消息异常:", e);
-            closeSession(CloseReason.CloseCodes.CLOSED_ABNORMALLY, e.getMessage());
+            close(CloseReason.CloseCodes.CLOSED_ABNORMALLY, e.getMessage());
         }
     }
 
