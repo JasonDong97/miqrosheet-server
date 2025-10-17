@@ -21,7 +21,7 @@ public class ReplyMessage {
      */
     private String username;
     /**
-     * 状态
+     * 状态: 0 成功 1 失败 2 退出
      */
     private Integer status;
     /**

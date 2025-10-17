@@ -67,7 +67,7 @@ public class SheetWebSocket {
 
         if (StrUtil.isBlank(gridKey)) {
             log.warn("连接参数错误，gridKey不能为空");
-            sendMessage("gridKey不能为空");
+            sendMessage("gridKey 不能为空");
             close(CloseReason.CloseCodes.CANNOT_ACCEPT, "gridKey不能为空");
             return;
         }
@@ -87,40 +87,30 @@ public class SheetWebSocket {
         }
 
         // 处理部分消息
-        byte[] bytes = appendMessage(message);
-        if (!last) {
+        byte[] bytes = appendMessage(message, last);
+        if (bytes == null) {
             return;
         }
 
-        removePartialMessage();
         String msg = URLUtil.decode(GzipUtil.uncompress(bytes));
         if (msg == null) {
             return;
         }
-
         if (lastReply != null && lastReply.getData().equals(msg)) {
             log.debug("重复消息，忽略不处理[{}][{}]:{}", gridKey, username, msg);
             return;
         }
+
         // 处理操作
         try {
-            JSONObject operation = JSON.parseObject(msg);
-            if (operation != null) {
-                JSONObject result = sheetOperationService.processOperation(operation, gridKey);
-                if ("error".equals(result.getString("status"))) {
-                    log.error("操作处理失败: {}", result.getString("message"));
-                    sendMessage(buildErrorMessage(result.getString("message")));
-                    return;
-                }
-            }
+            sheetOperationService.processOperation(JSON.parseObject(msg), gridKey);
         } catch (Exception e) {
-            log.error("接收消息发生异常！[{}][{}]:{}", gridKey, username, msg);
+            log.error("处理异常 [{}][{}]:{}", gridKey, username, msg);
             log.error("", e);
             sendMessage(buildErrorMessage("操作处理异常: " + e.getMessage()));
             return;
         }
-
-        sendMessage(msg);
+        // 发送广播
         broadcast(msg);
     }
     // 连接关闭
@@ -134,9 +124,10 @@ public class SheetWebSocket {
             v.remove(this);
             return v;
         });
-        log.info("[websocket] 连接断开：id={}，reason={}, 当前连接数={}", username, closeReason, SESSION_MAP.size());
+        int c = SESSION_MAP.get(gridKey).size();
+        log.info("{} 断开连接, gridKey: {}, 剩余协同编辑人数：{}", username, gridKey, c);
+        sendExitMsg();
     }
-    // 异常
 
     @OnError
     public void onError(Throwable t) {
@@ -147,6 +138,7 @@ public class SheetWebSocket {
 
     private void close(CloseReason.CloseCodes code, String reason) {
         try {
+            sendExitMsg();
             if (session.isOpen()) {
                 session.close(new CloseReason(code, reason));
             }
@@ -161,29 +153,27 @@ public class SheetWebSocket {
      * @param message 消息
      * @return 拼接后的消息
      */
-    private byte[] appendMessage(String message) {
-        byte[] bytes = message.getBytes(StandardCharsets.ISO_8859_1);
+    private byte[] appendMessage(String message, boolean last) {
+        byte[] part = message.getBytes(StandardCharsets.ISO_8859_1);
         Map<String, Object> userProperties = session.getUserProperties();
         log.debug("收到部分消息，等待接收完成[{}][{}]", gridKey, username);
         byte[] parts = (byte[]) userProperties.get(PARTIAL_MESSAGE_KEY);
         if (parts != null) {
-            byte[] newParts = new byte[parts.length + bytes.length];
+            byte[] newParts = new byte[parts.length + part.length];
             System.arraycopy(parts, 0, newParts, 0, parts.length);
-            System.arraycopy(bytes, 0, newParts, parts.length, bytes.length);
+            System.arraycopy(part, 0, newParts, parts.length, part.length);
             parts = newParts;
         } else {
-            parts = bytes;
+            parts = part;
         }
         userProperties.put(PARTIAL_MESSAGE_KEY, parts);
-        return parts;
+        if (last) {
+            session.getUserProperties().remove(PARTIAL_MESSAGE_KEY);
+            return parts;
+        }
+        return null;
     }
 
-    /**
-     * 移除部分消息记录
-     */
-    private void removePartialMessage() {
-        session.getUserProperties().remove(PARTIAL_MESSAGE_KEY);
-    }
 
     /**
      * 构建返回消息
@@ -231,7 +221,7 @@ public class SheetWebSocket {
                     if (userInfo != null) {
                         String name = userInfo.getString("nickName");
                         if (StrUtil.isNotBlank(name)) {
-                            return name;
+                            return name + "-" + session.getId();
                         }
                     }
                 } else {
@@ -254,12 +244,23 @@ public class SheetWebSocket {
             }
         }
     }
-    // 群发消息
+
+    private String toolongOmission(String str) {
+        if (str != null && str.length() > 1000) {
+            return str.substring(0, 500) + " ... " + str.substring(str.length() - 500);
+        }
+        return str;
+    }
+
+    /**
+     * 广播消息给其他用户
+     */
     private void broadcast(String data) {
         JSONObject json = JSON.parseObject(data);
         if (json == null) {
             return;
         }
+
         String t = json.getString("t");
         if (t == null) {
             return;
@@ -270,21 +271,13 @@ public class SheetWebSocket {
 
         Set<SheetWebSocket> clients = SESSION_MAP.get(gridKey);
         for (SheetWebSocket client : clients) {
-            if (client != this) {
-                client.sendMessage(message);
+            if (client == this) {
+                message.setType(1);
             }
+            client.sendMessage(message);
         }
-
-        message.setData(toolongOmission(message.getData())); // 清除data，避免日志过大
-        log.debug("广播消息[{}][{}]: {}", gridKey, username, message);
     }
 
-    private String toolongOmission(String str) {
-        if (str != null && str.length() > 1000) {
-            return str.substring(0, 500) + " ... " + str.substring(str.length() - 500);
-        }
-        return str;
-    }
 
     // 给单个 session 发消息
     private synchronized void sendMessage(Object message) {
@@ -303,5 +296,21 @@ public class SheetWebSocket {
 
     private synchronized void sendMessage(String data) {
         sendMessage(buildMessage(data, 0));
+    }
+
+    private void sendExitMsg() {
+        ReplyMessage msg = new ReplyMessage();
+        msg.setId(session.getId());
+        msg.setUsername(username);
+        msg.setStatus(2);
+        msg.setMessage("用户退出");
+        msg.setCreateTime(System.currentTimeMillis());
+        Set<SheetWebSocket> sheetWebSockets = SESSION_MAP.get(gridKey);
+        for (SheetWebSocket client : sheetWebSockets) {
+            if (client != this) {
+                log.info("gridKey:{}, {} 已退出，广播给：{}", gridKey, username, client.username);
+                client.sendMessage(msg);
+            }
+        }
     }
 }

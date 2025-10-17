@@ -17,7 +17,7 @@ public interface ISheetOperationService {
      * @param gridKey 表格标识
      * @return 处理结果
      */
-    JSONObject processOperation(JSONObject operation, String gridKey);
+    void processOperation(JSONObject operation, String gridKey);
 
     /**
      * 处理单元格值更新 (t: "v")

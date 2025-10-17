@@ -58,64 +58,60 @@ public class SheetOperationServiceImpl implements ISheetOperationService {
      * - na: 工作簿名称修改
      * - c: 图表操作
      *
-     * @param operation 操作数据，包含操作类型和具体参数
-     * @param gridKey   表格唯一标识
-     * @return 处理结果，包含状态和消息
+     * @param op      操作数据，包含操作类型和具体参数
+     * @param gridKey 表格唯一标识
      */
     @Override
-    @Transactional
-    public JSONObject processOperation(JSONObject operation, String gridKey) {
-        String operationType = operation.getString("t");
-        log.info("处理操作类型: {}, gridKey: {}", operationType, gridKey);
+    @Transactional(rollbackFor = Exception.class)
+    public void processOperation(JSONObject op, String gridKey) {
+        String opt = op.getString("t");
+        if ("mv".equals(opt)) {
+            // 选区移动操作不涉及数据变更，直接返回成功
+            return;
+        }
 
-        try {
-            switch (operationType) {
-                case "v":
-                    processCellValueUpdate(operation, gridKey);
-                    break;
-                case "rv":
-                case "rv_end":
-                    processRangeCellUpdate(operation, gridKey);
-                    break;
-                case "cg":
-                    processConfigUpdate(operation, gridKey);
-                    break;
-                case "all":
-                    processGeneralSave(operation, gridKey);
-                    break;
-                case "fc":
-                    processFunctionChain(operation, gridKey);
-                    break;
-                case "drc":
-                case "arc":
-                    processRowColumnOperation(operation, gridKey);
-                    break;
-                case "fsc":
-                case "fsr":
-                    processFilterOperation(operation, gridKey);
-                    break;
-                case "sha":
-                case "shc":
-                case "shd":
-                case "shre":
-                case "shr":
-                case "shs":
-                case "sh":
-                    processSheetOperation(operation, gridKey);
-                    break;
-                case "na":
-                    processWorkbookNameChange(operation, gridKey);
-                    break;
-                case "c":
-                    processChartOperation(operation, gridKey);
-                    break;
-                default:
-                    log.warn("未知操作类型: {}", operationType);
-            }
-            return JSONObject.of("status", "success", "message", "操作处理成功");
-        } catch (Exception e) {
-            log.error("处理操作失败: {}", e.getMessage(), e);
-            return JSONObject.of("status", "error", "message", "操作处理失败: " + e.getMessage());
+        switch (opt) {
+            case "v":
+                processCellValueUpdate(op, gridKey);
+                break;
+            case "rv":
+            case "rv_end":
+                processRangeCellUpdate(op, gridKey);
+                break;
+            case "cg":
+                processConfigUpdate(op, gridKey);
+                break;
+            case "all":
+                processGeneralSave(op, gridKey);
+                break;
+            case "fc":
+                processFunctionChain(op, gridKey);
+                break;
+            case "drc":
+            case "arc":
+                processRowColumnOperation(op, gridKey);
+                break;
+            case "fsc":
+            case "fsr":
+                processFilterOperation(op, gridKey);
+                break;
+            case "sha":
+            case "shc":
+            case "shd":
+            case "shre":
+            case "shr":
+            case "shs":
+            case "sh":
+                processSheetOperation(op, gridKey);
+                break;
+            case "na":
+                processWorkbookNameChange(op, gridKey);
+                break;
+            case "c":
+                processChartOperation(op, gridKey);
+                break;
+            default:
+                log.warn("未知操作类型, {}: {}", opt, op);
         }
     }
 
@@ -486,13 +482,7 @@ public class SheetOperationServiceImpl implements ISheetOperationService {
 
         WbSheet sheet = new WbSheet();
         sheet.setGridKey(gridKey);
-        sheet.setName(v.getString("name"));
-        sheet.setIndex(v.getString("index"));
-        sheet.setStatus(v.getBoolean("status"));
-        sheet.setOrder(v.getInteger("order"));
-        sheet.setColor(v.getString("color"));
         sheet.setJsonData(v.toJSONString());
-
         wbSheetMapper.insert(sheet);
     }
 
@@ -505,12 +495,7 @@ public class SheetOperationServiceImpl implements ISheetOperationService {
         if (sourceSheet != null) {
             WbSheet newSheet = new WbSheet();
             newSheet.setGridKey(gridKey);
-            newSheet.setName(newName);
-            newSheet.setIndex(operation.getString("i"));
-            newSheet.setStatus(false);
-            newSheet.setOrder(sourceSheet.getOrder() + 1);
             newSheet.setJsonData(sourceSheet.getJsonData());
-
             wbSheetMapper.insert(newSheet);
         }
     }
