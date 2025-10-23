@@ -504,22 +504,18 @@ public class SheetOperationServiceImpl implements ISheetOperationService {
     }
 
     private void processCopySheet(JSONObject operation, String gridKey) {
+
         String copyIndex = operation.getJSONObject("v").getString("copyindex");
+        String index = operation.getString("i");
         String newName = operation.getJSONObject("v").getString("name");
 
         // 获取要复制的sheet
-        WbSheet sourceSheet = wbSheetMapper.selectByGridKeyAndIndex(gridKey, copyIndex);
-        if (sourceSheet != null) {
-            WbSheet newSheet = new WbSheet();
-            newSheet.setGridKey(gridKey);
-            newSheet.setJsonData(sourceSheet.getJsonData());
-            wbSheetMapper.insert(newSheet);
-        }
+        wbSheetMapper.copyByIndex(gridKey, copyIndex, newName,index);
     }
 
     private void processDeleteSheet(JSONObject operation, String gridKey) {
-        Integer deleteIndex = operation.getJSONObject("v").getInteger("deleIndex");
-        wbSheetMapper.deleteByOrder(gridKey, deleteIndex);
+        String deleteIndex = operation.getJSONObject("v").getString("deleIndex");
+        wbSheetMapper.deleteByIndex(gridKey, deleteIndex);
     }
 
     private void processRestoreSheet(JSONObject operation, String gridKey) {
@@ -537,18 +533,18 @@ public class SheetOperationServiceImpl implements ISheetOperationService {
     }
 
     private void processSwitchSheet(JSONObject operation, String gridKey) {
-        Integer targetIndex = operation.getInteger("v");
+        String targetIndex = operation.getString("v");
         // 先设置所有sheet为未激活
         wbSheetMapper.setAllInactive(gridKey);
         // 再设置目标sheet为激活
-        wbSheetMapper.setActiveByOrder(gridKey, targetIndex);
+        wbSheetMapper.setActiveByIndex(gridKey, targetIndex);
     }
 
     private void processHideShowSheet(JSONObject operation, String gridKey) {
         String sheetIndex = operation.getString("i");
         Integer v = operation.getInteger("v");
         String op = operation.getString("op");
-        Integer cur = operation.getInteger("cur");
+        String cur = operation.getString("cur");
 
         if ("hide".equals(op)) {
             // 隐藏sheet
@@ -556,7 +552,7 @@ public class SheetOperationServiceImpl implements ISheetOperationService {
             if (v == 1) {
                 wbSheetMapper.setInactiveByIndex(gridKey, sheetIndex);
                 if (cur != null) {
-                    wbSheetMapper.setActiveByOrder(gridKey, cur);
+                    wbSheetMapper.setActiveByIndex(gridKey, cur);
                 }
             }
         } else if ("show".equals(op)) {

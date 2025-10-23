@@ -20,15 +20,13 @@ public interface WbSheetMapper extends BaseMapper<WbSheet> {
    
    WbSheet selectByGridKeyAndIndex(@Param("gridKey") String gridKey, @Param("index") String index);
    
-   void deleteByOrder(@Param("gridKey") String gridKey, @Param("order") Integer order);
+   void deleteByIndex(@Param("gridKey") String gridKey, @Param("index") String index);
    
    void restoreByIndex(@Param("gridKey") String gridKey, @Param("index") String index);
    
    void updateOrderByIndex(@Param("gridKey") String gridKey, @Param("index") String index, @Param("order") Integer order);
    
    void setAllInactive(@Param("gridKey") String gridKey);
-   
-   void setActiveByOrder(@Param("gridKey") String gridKey, @Param("order") Integer order);
    
    void setActiveByIndex(@Param("gridKey") String gridKey, @Param("index") String index);
    
@@ -51,4 +49,7 @@ public interface WbSheetMapper extends BaseMapper<WbSheet> {
    void clearFilter(@Param("gridKey") String gridKey, @Param("index") String index);
    
    void restoreFilter(@Param("gridKey") String gridKey, @Param("index") String index, @Param("filter") String filter, @Param("filterSelect") String filterSelect);
+
+   void copyByIndex(@Param("gridKey") String gridKey, @Param("copyIndex") String copyIndex, @Param("newName") String newName, @Param("index") String index);
+
 }

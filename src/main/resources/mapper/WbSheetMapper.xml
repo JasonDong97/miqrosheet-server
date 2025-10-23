@@ -8,72 +8,83 @@
         where grid_key = #{gridKey}
         order by `order`
     </select>
-    
+
     <select id="selectByGridKeyAndIndex" resultType="com.era.miqrosheet.domain.model.WbSheet">
         select *
         from wb_sheet
         where grid_key = #{gridKey}
           and `index` = #{index}
     </select>
-    
-    <delete id="deleteByOrder">
+    <select id="copyByIndex" >
+        insert into wb_sheet (grid_key, json_data)
+        select grid_key, json_set(json_data, '$.name', #{newName}, '$.index', #{index}) as json_data
+        from wb_sheet
+        where grid_key = #{gridKey}
+          and `index` = #{copyIndex}
+    </select>
+
+    <delete id="deleteByIndex">
         delete
         from wb_sheet
         where grid_key = #{gridKey}
-          and `order` = #{order}
+          and `index` = #{index}
     </delete>
-    
+
     <update id="restoreByIndex">
         update wb_sheet
         set json_data = json_set(json_data, '$.status', 1)
         where grid_key = #{gridKey}
           and `index` = #{index}
     </update>
-    
+
     <update id="updateOrderByIndex">
         update wb_sheet
         set json_data = json_set(json_data, '$.order', #{order})
         where grid_key = #{gridKey}
           and `index` = #{index}
     </update>
-    
+
     <update id="setAllInactive">
         update wb_sheet
         set json_data = json_set(json_data, '$.status', 1)
         where grid_key = #{gridKey}
     </update>
-    
+
     <update id="setActiveByOrder">
         update wb_sheet
         set json_data = json_set(json_data, '$.status', 1)
-        where grid_key = #{gridKey} and `order` = #{order}
+        where grid_key = #{gridKey}
+          and `order` = #{order}
     </update>
-    
+
     <update id="setActiveByIndex">
         update wb_sheet
         set json_data = json_set(json_data, '$.status', 1)
-        where grid_key = #{gridKey} and `index` = #{index}
+        where grid_key = #{gridKey}
+          and `index` = #{index}
     </update>
-    
+
     <update id="setInactiveByIndex">
         update wb_sheet
         set json_data = json_set(json_data, '$.status', 0)
-        where grid_key = #{gridKey} and `index` = #{index}
+        where grid_key = #{gridKey}
+          and `index` = #{index}
     </update>
-    
+
     <update id="setHideByIndex">
         update wb_sheet
         set json_data = json_set(json_data, '$.hide', 1)
-        where grid_key = #{gridKey} and `index` = #{index}
+        where grid_key = #{gridKey}
+          and `index` = #{index}
     </update>
-    
+
     <update id="setAllInactiveExcept">
         update wb_sheet
         set json_data = json_set(json_data, '$.status', 0)
         where grid_key = #{gridKey}
           and `index` != #{index}
     </update>
-    
+
     <update id="updateJsonField">
         update wb_sheet
         set json_data = JSON_SET(
@@ -84,79 +95,85 @@
         where grid_key = #{gridKey}
           and `index` = #{index}
     </update>
-    
+
     <update id="updateConfigField">
         update wb_sheet
         set json_data = JSON_SET(
-            COALESCE(json_data, '{}'),
-            '$.config',
-            JSON_SET(
-                COALESCE(JSON_EXTRACT(json_data, '$.config'), '{}'),
-                CONCAT('$.', #{key}),
-                CAST(#{value} AS JSON)
-            )
-        )
-        where grid_key = #{gridKey} and `index` = #{index}
+                COALESCE(json_data, '{}'),
+                '$.config',
+                JSON_SET(
+                        COALESCE(JSON_EXTRACT(json_data, '$.config'), '{}'),
+                        CONCAT('$.', #{key}),
+                        CAST(#{value} AS JSON)
+                )
+                        )
+        where grid_key = #{gridKey}
+          and `index` = #{index}
     </update>
-    
+
     <update id="addToCalcChain">
         update wb_sheet
         set json_data = JSON_SET(
-            COALESCE(json_data, '{}'),
-            '$.calcChain',
-            JSON_ARRAY_APPEND(
-                COALESCE(JSON_EXTRACT(json_data, '$.calcChain'), '[]'),
-                '$',
-                CAST(#{value} AS JSON)
-            )
-        )
-        where grid_key = #{gridKey} and `index` = #{index}
+                COALESCE(json_data, '{}'),
+                '$.calcChain',
+                JSON_ARRAY_APPEND(
+                        COALESCE(JSON_EXTRACT(json_data, '$.calcChain'), '[]'),
+                        '$',
+                        CAST(#{value} AS JSON)
+                )
+                        )
+        where grid_key = #{gridKey}
+          and `index` = #{index}
     </update>
-    
+
     <update id="updateCalcChainAt">
         update wb_sheet
         set json_data = JSON_SET(
-            COALESCE(json_data, '{}'),
-            CONCAT('$.calcChain[', #{pos}, ']'),
-            CAST(#{value} AS JSON)
-        )
-        where grid_key = #{gridKey} and `index` = #{index}
+                COALESCE(json_data, '{}'),
+                CONCAT('$.calcChain[', #{pos}, ']'),
+                CAST(#{value} AS JSON)
+                        )
+        where grid_key = #{gridKey}
+          and `index` = #{index}
     </update>
-    
+
     <update id="removeFromCalcChainAt">
         update wb_sheet
         set json_data = JSON_SET(
-            COALESCE(json_data, '{}'),
-            '$.calcChain',
-            JSON_REMOVE(
-                COALESCE(JSON_EXTRACT(json_data, '$.calcChain'), '[]'),
-                CONCAT('$[', #{pos}, ']')
-            )
-        )
-        where grid_key = #{gridKey} and `index` = #{index}
+                COALESCE(json_data, '{}'),
+                '$.calcChain',
+                JSON_REMOVE(
+                        COALESCE(JSON_EXTRACT(json_data, '$.calcChain'), '[]'),
+                        CONCAT('$[', #{pos}, ']')
+                )
+                        )
+        where grid_key = #{gridKey}
+          and `index` = #{index}
     </update>
-    
+
     <update id="clearFilter">
         update wb_sheet
         set json_data = JSON_SET(
-            COALESCE(json_data, '{}'),
-            '$.filter',
-            NULL,
-            '$.filter_select',
-            NULL
-        )
-        where grid_key = #{gridKey} and `index` = #{index}
+                COALESCE(json_data, '{}'),
+                '$.filter',
+                NULL,
+                '$.filter_select',
+                NULL
+                        )
+        where grid_key = #{gridKey}
+          and `index` = #{index}
     </update>
-    
+
     <update id="restoreFilter">
         update wb_sheet
         set json_data = JSON_SET(
-            COALESCE(json_data, '{}'),
-            '$.filter',
-            CAST(#{filter} AS JSON),
-            '$.filter_select',
-            CAST(#{filterSelect} AS JSON)
-        )
-        where grid_key = #{gridKey} and `index` = #{index}
+                COALESCE(json_data, '{}'),
+                '$.filter',
+                CAST(#{filter} AS JSON),
+                '$.filter_select',
+                CAST(#{filterSelect} AS JSON)
+                        )
+        where grid_key = #{gridKey}
+          and `index` = #{index}
     </update>
 </mapper>
