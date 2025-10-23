@@ -8,7 +8,16 @@
         where sheet_index = #{index} and grid_key = #{gridKey}
         order by r, c
     </select>
-    
+    <select id="selectByUniqueParam" resultType="com.era.miqrosheet.domain.model.WbSheetCelldata">
+        select *
+        from wb_sheet_celldata
+        where sheet_index = #{i}
+          and r = #{r}
+          and c = #{c}
+          and grid_key = #{gridKey}
+        limit 1
+    </select>
+
     <delete id="deleteBySheetIndexAndPosition">
         delete from wb_sheet_celldata
         where sheet_index = #{index} and r = #{r} and c = #{c}

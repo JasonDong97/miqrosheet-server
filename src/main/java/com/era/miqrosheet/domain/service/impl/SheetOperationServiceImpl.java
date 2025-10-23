@@ -140,21 +140,26 @@ public class SheetOperationServiceImpl implements ISheetOperationService {
         String sheetIndex = operation.getString("i");
         Integer r = operation.getInteger("r");
         Integer c = operation.getInteger("c");
-        Object v = operation.get("v");
+        WbSheetCelldata celldata = celldataMapper.selectByUniqueParam(gridKey, sheetIndex, r, c);
+        if (celldata == null) {
+            celldata = new WbSheetCelldata();
+        }
 
-        WbSheetCelldata celldata = new WbSheetCelldata();
-        celldata.setSheetIndex(sheetIndex);
+        Object v = operation.get("v");
+        if (v == null && celldata.getId() != null) {
+            celldataMapper.deleteById(celldata.getId());
+            return;
+        }
+
         celldata.setGridKey(gridKey);
+        celldata.setSheetIndex(sheetIndex);
         celldata.setR(r);
         celldata.setC(c);
         celldata.setV(JSON.toJSONString(v));
-
-        // 如果v为null，删除该单元格
-        if (v == null) {
-            celldataMapper.deleteBySheetIndexAndPosition(gridKey, sheetIndex, r, c);
+        if (celldata.getId() == null) {
+            celldataMapper.insert(celldata);
         } else {
-            // 更新或插入单元格数据
-            celldataMapper.insertOrUpdate(celldata);
+            celldataMapper.updateById(celldata);
         }
     }
 
@@ -201,15 +206,27 @@ public class SheetOperationServiceImpl implements ISheetOperationService {
             if (rowData != null) {
                 for (int j = 0; j < rowData.size(); j++) {
                     Object cellValue = rowData.get(j);
-                    if (cellValue != null) {
-                        WbSheetCelldata celldata = new WbSheetCelldata();
-                        celldata.setSheetIndex(sheetIndex);
-                        celldata.setGridKey(gridKey);
-                        celldata.setR(startRow + i);
-                        celldata.setC(startCol + j);
-                        celldata.setV(JSON.toJSONString(cellValue));
-                        celldataMapper.insertOrUpdate(celldata);
+                    int r = startRow + i;
+                    int c = startCol + j;
+                    WbSheetCelldata celldata = celldataMapper.selectByUniqueParam(gridKey, sheetIndex, r, c);
+                    if (celldata == null) {
+                        celldata = new WbSheetCelldata();
                     }
+                    celldata.setSheetIndex(sheetIndex);
+                    celldata.setGridKey(gridKey);
+                    celldata.setR(r);
+                    celldata.setC(c);
+                    if (cellValue == null && celldata.getId() != null) {
+                        celldataMapper.deleteById(celldata.getId());
+                    } else {
+                        celldata.setV(JSON.toJSONString(cellValue));
+                        if (celldata.getId() == null) {
+                            celldataMapper.insert(celldata);
+                        } else {
+                            celldataMapper.updateById(celldata);
+                        }
+                    }
+
                 }
             }
         }

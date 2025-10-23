@@ -33,4 +33,6 @@ public interface WbSheetCelldataMapper extends BaseMapper<WbSheetCelldata> {
     void updateRowNumbersAfterInsert(@Param("gridKey") String gridKey, @Param("index") String index, @Param("startRow") Integer startRow, @Param("len") Integer len);
     
     void updateColumnNumbersAfterInsert(@Param("gridKey") String gridKey, @Param("index") String index, @Param("startCol") Integer startCol, @Param("len") Integer len);
+
+    WbSheetCelldata selectByUniqueParam(@Param("gridKey") String gridKey, @Param("i") String i, @Param("r") Integer r, @Param("c") Integer c);
 }
