@@ -46,7 +46,11 @@ public class AuthController {
         if (clientRedirectUrl != null) {
             clientRedirectUrl = StrUtil.replaceLast(clientRedirectUrl, "#/", "");
             URL url = new URL(clientRedirectUrl);
-            serverRedirectUrl = url.getProtocol() + "://" + url.getHost() + ":" + url.getPort() + request.getRequestURI();
+            if (-1 == url.getPort()) {
+                serverRedirectUrl = url.getProtocol() + "://" + url.getHost() + request.getRequestURI();
+            } else {
+                serverRedirectUrl = url.getProtocol() + "://" + url.getHost() + ":" + url.getPort() + request.getRequestURI();
+            }
         }
 
         log.info("clientRedirectUrl: {}", clientRedirectUrl);
