@@ -1,10 +1,11 @@
 package com.era.miqrosheet.domain.service;
 
 import com.alibaba.fastjson2.JSONObject;
+import com.era.miqrosheet.domain.model.MsgType;
 
 /**
  * 表格操作服务接口
- * 
+ *
  * @author dongjingxiang
  * @since 2025-01-27
  */
@@ -15,7 +16,6 @@ public interface ISheetOperationService {
      * 
      * @param operation 操作数据
      * @param gridKey 表格标识
-     * @return 处理结果
      */
     void processOperation(JSONObject operation, String gridKey);
 

@@ -48,6 +48,6 @@ logging:
     com.era.miqrosheet.domain.mapper.WbSheetMapper: debug
     
 oauth2:
-  oauthUrl: http://10.36.160.33:15173/api/oauth2
+  oauthUrl: http://139.196.211.120:6810/api/oauth2
   clientId: miqrosheet
   clientSecret: miqro123456

@@ -68,9 +68,6 @@ public class AuthController {
         if (code == null) {
             String authorizeURL = oAuthConfig.getAuthorizeURL(serverRedirectUrl);
             log.info("重定向: {}", authorizeURL);
-//            response.setContentType("text/html;charset=UTF-8");
-//            response.getWriter().write("<script>alert('请先登录授权');</script>");
-//            response.getWriter().write("<script>window.location.href='"+authorizeURL+"'</script>");
             response.sendRedirect(authorizeURL);
             return;
         }

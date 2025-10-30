@@ -6,6 +6,7 @@ import com.alibaba.fastjson2.JSONObject;
 import com.era.miqrosheet.domain.mapper.WbMapper;
 import com.era.miqrosheet.domain.mapper.WbSheetCelldataMapper;
 import com.era.miqrosheet.domain.mapper.WbSheetMapper;
+import com.era.miqrosheet.domain.model.MsgType;
 import com.era.miqrosheet.domain.model.Wb;
 import com.era.miqrosheet.domain.model.WbSheet;
 import com.era.miqrosheet.domain.model.WbSheetCelldata;
@@ -58,8 +59,6 @@ public class SheetOperationServiceImpl implements ISheetOperationService {
      * - na: 工作簿名称修改
      * - c: 图表操作
      *
-     * @param op      操作数据，包含操作类型和具体参数
-     * @param gridKey 表格唯一标识
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -510,7 +509,7 @@ public class SheetOperationServiceImpl implements ISheetOperationService {
         String newName = operation.getJSONObject("v").getString("name");
 
         // 获取要复制的sheet
-        wbSheetMapper.copyByIndex(gridKey, copyIndex, newName,index);
+        wbSheetMapper.copyByIndex(gridKey, copyIndex, newName, index);
     }
 
     private void processDeleteSheet(JSONObject operation, String gridKey) {
